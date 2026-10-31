@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#3157d5">
+  <title>Портал в будущее — инструменты учителя</title>
+  <style>
+    :root {
+      --ink: #17213c;
+      --muted: #66718e;
+      --primary: #3157d5;
+      --primary-dark: #2544ae;
+      --accent: #8a5cf6;
+      --line: #dfe4f1;
+      --surface: rgba(255, 255, 255, .94);
+      --soft: #f3f6ff;
+      --success-soft: #eef8f5;
+      --success-line: #b8e1d4;
+      --success-ink: #245f50;
+      --shadow: 0 20px 55px rgba(32, 50, 105, .12);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 4%, rgba(138, 92, 246, .14), transparent 30rem),
+        radial-gradient(circle at 92% 10%, rgba(55, 177, 207, .16), transparent 28rem),
+        #f6f8fd;
+      font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+
+    .shell {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 22px 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--ink);
+      font-weight: 800;
+      letter-spacing: -.02em;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border-radius: 13px;
+      color: white;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      box-shadow: 0 10px 25px rgba(49, 87, 213, .25);
+    }
+
+    .team {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: right;
+    }
+
+    .hero {
+      padding: 58px 24px 42px;
+      text-align: center;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 14px;
+      padding: 7px 12px;
+      border: 1px solid #dce2fa;
+      border-radius: 999px;
+      color: var(--primary-dark);
+      background: rgba(255, 255, 255, .72);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    h1 {
+      max-width: 760px;
+      margin: 0 auto 16px;
+      font-size: clamp(35px, 6vw, 62px);
+      line-height: 1.05;
+      letter-spacing: -.045em;
+    }
+
+    .hero-copy {
+      max-width: 660px;
+      margin: 0 auto;
+      color: var(--muted);
+      font-size: clamp(17px, 2vw, 20px);
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      max-width: 650px;
+      margin: 4px auto 24px;
+      padding: 7px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: rgba(255, 255, 255, .76);
+      box-shadow: 0 10px 30px rgba(32, 50, 105, .07);
+    }
+
+    .tab {
+      min-height: 48px;
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 12px;
+      color: var(--muted);
+      background: transparent;
+      font-weight: 750;
+      transition: .2s ease;
+    }
+
+    .tab:hover { color: var(--primary); background: var(--soft); }
+    .tab[aria-selected="true"] { color: white; background: var(--primary); box-shadow: 0 7px 18px rgba(49, 87, 213, .25); }
+
+    .panel {
+      display: none;
+      grid-template-columns: minmax(0, 1.05fr) minmax(300px, .95fr);
+      gap: 24px;
+      padding: clamp(22px, 4vw, 38px);
+      border: 1px solid rgba(223, 228, 241, .9);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .panel.active { display: grid; }
+    .panel-heading { margin-bottom: 28px; }
+    .section-icon { font-size: 28px; }
+
+    h2 {
+      margin: 8px 0 7px;
+      font-size: clamp(25px, 4vw, 34px);
+      letter-spacing: -.03em;
+    }
+
+    .panel-heading p, .result-card p { margin: 0; color: var(--muted); }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .field { display: grid; gap: 8px; }
+    .field.wide { grid-column: 1 / -1; }
+
+    label, .group-label {
+      color: #35405d;
+      font-size: 14px;
+      font-weight: 750;
+    }
+
+    input, select {
+      width: 100%;
+      min-height: 48px;
+      padding: 11px 13px;
+      border: 1px solid #ccd4e7;
+      border-radius: 11px;
+      outline: none;
+      color: var(--ink);
+      background: white;
+      transition: border-color .18s, box-shadow .18s;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(49, 87, 213, .11);
+    }
+
+    .primary-btn {
+      width: 100%;
+      min-height: 52px;
+      margin-top: 22px;
+      border: 0;
+      border-radius: 12px;
+      color: white;
+      background: linear-gradient(135deg, var(--primary), #496ce2);
+      font-weight: 800;
+      box-shadow: 0 10px 22px rgba(49, 87, 213, .23);
+      transition: transform .15s, box-shadow .15s;
+    }
+
+    .primary-btn:hover { transform: translateY(-1px); box-shadow: 0 13px 26px rgba(49, 87, 213, .29); }
+    .primary-btn:active { transform: translateY(0); }
+
+    .result-card {
+      min-height: 100%;
+      padding: 24px;
+      border: 1px solid #dde4f6;
+      border-radius: 18px;
+      background: linear-gradient(145deg, #f8faff, #f0f4ff);
+    }
+
+    .result-card h3 { margin: 0 0 8px; font-size: 18px; }
+    .empty-state { display: grid; place-items: center; min-height: 250px; text-align: center; }
+    .empty-icon { margin-bottom: 12px; font-size: 42px; opacity: .7; }
+
+    .notice {
+      display: none;
+      padding: 18px;
+      border: 1px solid var(--success-line);
+      border-radius: 13px;
+      color: var(--success-ink);
+      background: var(--success-soft);
+      text-align: left;
+    }
+
+    .notice.show { display: block; }
+    .notice strong { display: block; margin-bottom: 4px; }
+
+    .subjects { display: grid; gap: 10px; margin-top: 8px; }
+    .subject-row { display: grid; grid-template-columns: 1fr 130px 42px; gap: 9px; align-items: center; }
+
+    .icon-btn, .add-btn {
+      min-height: 42px;
+      border: 1px solid #ccd4e7;
+      border-radius: 10px;
+      color: var(--primary-dark);
+      background: white;
+      font-weight: 750;
+    }
+
+    .icon-btn { color: #8b4250; font-size: 20px; }
+    .icon-btn:hover, .add-btn:hover { background: var(--soft); border-color: #aebbea; }
+    .add-btn { margin-top: 10px; padding: 8px 14px; }
+
+    .schedule-wrap { overflow-x: auto; margin-top: 18px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 11px; border: 1px solid var(--line); text-align: left; }
+    th { color: #44506d; background: white; }
+    td { color: var(--muted); }
+
+    footer { padding: 30px 0 38px; color: var(--muted); font-size: 14px; text-align: center; }
+
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 20px, 1120px); }
+      .topbar { padding: 15px 3px; }
+      .team { display: none; }
+      .hero { padding: 38px 10px 30px; }
+      .tabs { grid-template-columns: 1fr; }
+      .panel, .panel.active { grid-template-columns: 1fr; }
+      .result-card { min-height: 260px; }
+    }
+
+    @media (max-width: 520px) {
+      .brand { font-size: 15px; }
+      .panel { padding: 20px 15px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .field.wide { grid-column: auto; }
+      .subject-row { grid-template-columns: 1fr 92px 40px; }
+      .subject-row input { padding-inline: 9px; }
+      .lessons-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+    }
+  </style>
+</head>
+<body>
+  <header class="shell topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">П</span><span>Портал в будущее</span></div>
+    <p class="team">Команда «Старт» · гимназия №12 · Волгоград</p>
+  </header>
+
+  <main class="shell">
+    <section class="hero" aria-labelledby="page-title">
+      <p class="eyebrow">✦ Проект для хакатона «Идея фикс»</p>
+      <h1 id="page-title">Больше времени на главное</h1>
+      <p class="hero-copy">Цифровые инструменты, которые помогут учителю готовить задания и планировать учебную неделю.</p>
+    </section>
+
+    <nav class="tabs" aria-label="Разделы приложения" role="tablist">
+      <button class="tab" id="assistant-tab" type="button" role="tab" aria-selected="true" aria-controls="assistant-panel">ИИ-помощник учителя</button>
+      <button class="tab" id="schedule-tab" type="button" role="tab" aria-selected="false" aria-controls="schedule-panel">Умное расписание</button>
+    </nav>
+
+    <section class="panel active" id="assistant-panel" role="tabpanel" aria-labelledby="assistant-tab">
+      <div>
+        <div class="panel-heading">
+          <span class="section-icon" aria-hidden="true">✨</span>
+          <h2>ИИ-помощник учителя</h2>
+          <p>Задайте параметры, чтобы подготовить материалы для урока.</p>
+        </div>
+        <form id="assistant-form">
+          <div class="form-grid">
+            <div class="field wide">
+              <label for="topic">Тема урока</label>
+              <input id="topic" name="topic" type="text" placeholder="Например: Законы Ньютона" required>
+            </div>
+            <div class="field">
+              <label for="grade">Класс</label>
+              <select id="grade" name="grade">
+                <option value="5">5 класс</option><option value="6">6 класс</option><option value="7">7 класс</option>
+                <option value="8">8 класс</option><option value="9">9 класс</option><option value="10">10 класс</option><option value="11">11 класс</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="difficulty">Сложность</label>
+              <select id="difficulty" name="difficulty">
+                <option value="basic">Базовый</option><option value="medium" selected>Средний</option><option value="advanced">Повышенный</option>
+              </select>
+            </div>
+            <div class="field wide">
+              <label for="task-type">Тип задания</label>
+              <select id="task-type" name="task-type">
+                <option value="test">Тест</option><option value="quiz">Викторина</option><option value="independent">Самостоятельная работа</option>
+              </select>
+            </div>
+          </div>
+          <button class="primary-btn" type="submit">Создать задания</button>
+        </form>
+      </div>
+      <aside class="result-card" aria-live="polite">
+        <h3>Результат</h3>
+        <div class="empty-state" id="assistant-empty">
+          <div><div class="empty-icon" aria-hidden="true">📝</div><p>Здесь появятся подготовленные задания.</p></div>
+        </div>
+        <div class="notice" id="assistant-notice">
+          <strong>Функция готовится к запуску</strong>
+          Генерация заданий с помощью ИИ будет подключена на следующем этапе разработки.
+        </div>
+      </aside>
+    </section>
+
+    <section class="panel" id="schedule-panel" role="tabpanel" aria-labelledby="schedule-tab" hidden>
+      <div>
+        <div class="panel-heading">
+          <span class="section-icon" aria-hidden="true">📅</span>
+          <h2>Умное расписание</h2>
+          <p>Укажите учебную нагрузку на неделю.</p>
+        </div>
+        <form id="schedule-form">
+          <div class="field">
+            <label for="school-days">Количество учебных дней</label>
+            <select id="school-days" name="school-days">
+              <option value="5">5 дней</option><option value="6">6 дней</option>
+            </select>
+          </div>
+          <p class="group-label">Предметы и уроки в неделю</p>
+          <div class="subjects" id="subjects">
+            <div class="subject-row">
+              <input name="subject" type="text" aria-label="Название предмета" placeholder="Например: Математика" required>
+              <input name="lessons" type="number" aria-label="Уроков в неделю" min="1" max="12" value="5" required>
+              <button class="icon-btn" type="button" aria-label="Удалить предмет">×</button>
+            </div>
+            <div class="subject-row">
+              <input name="subject" type="text" aria-label="Название предмета" placeholder="Например: Русский язык" required>
+              <input name="lessons" type="number" aria-label="Уроков в неделю" min="1" max="12" value="4" required>
+              <button class="icon-btn" type="button" aria-label="Удалить предмет">×</button>
+            </div>
+          </div>
+          <button class="add-btn" id="add-subject" type="button">+ Добавить предмет</button>
+          <button class="primary-btn" type="submit">Составить расписание</button>
+        </form>
+      </div>
+      <aside class="result-card" aria-live="polite">
+        <h3>Расписание</h3>
+        <div class="empty-state" id="schedule-empty">
+          <div><div class="empty-icon" aria-hidden="true">🗓️</div><p>Готовое расписание появится в этой таблице.</p></div>
+        </div>
+        <div class="notice" id="schedule-notice">
+          <strong>Функция готовится к запуску</strong>
+          Алгоритм составления расписания будет подключён на следующем этапе разработки.
+        </div>
+        <div class="schedule-wrap">
+          <table aria-label="Будущее расписание">
+            <thead><tr><th>День</th><th>Уроки</th></tr></thead>
+            <tbody><tr><td colspan="2">Расписание пока не составлено</td></tr></tbody>
+          </table>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <footer class="shell">«Портал в будущее» · команда «Старт» · 2026</footer>
+
+  <script>
+    const tabs = document.querySelectorAll('[role="tab"]');
+    const panels = document.querySelectorAll('[role="tabpanel"]');
+
+    tabs.forEach((tab) => tab.addEventListener('click', () => {
+      tabs.forEach((item) => item.setAttribute('aria-selected', String(item === tab)));
+      panels.forEach((panel) => {
+        const selected = panel.id === tab.getAttribute('aria-controls');
+        panel.classList.toggle('active', selected);
+        panel.hidden = !selected;
+      });
+    }));
+
+    document.querySelector('#assistant-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      document.querySelector('#assistant-empty').hidden = true;
+      document.querySelector('#assistant-notice').classList.add('show');
+    });
+
+    document.querySelector('#schedule-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      document.querySelector('#schedule-empty').hidden = true;
+      document.querySelector('#schedule-notice').classList.add('show');
+    });
+
+    const subjects = document.querySelector('#subjects');
+
+    document.querySelector('#add-subject').addEventListener('click', () => {
+      const row = document.createElement('div');
+      row.className = 'subject-row';
+      row.innerHTML = '<input name="subject" type="text" aria-label="Название предмета" placeholder="Название предмета" required><input name="lessons" type="number" aria-label="Уроков в неделю" min="1" max="12" value="1" required><button class="icon-btn" type="button" aria-label="Удалить предмет">×</button>';
+      subjects.append(row);
+      row.querySelector('input').focus();
+    });
+
+    subjects.addEventListener('click', (event) => {
+      if (!event.target.matches('.icon-btn')) return;
+      const rows = subjects.querySelectorAll('.subject-row');
+      if (rows.length > 1) event.target.closest('.subject-row').remove();
+    });
+  </script>
+</body>
+</html>
