@@ -38,3 +38,41 @@ $env:GIGACHAT_CREDENTIALS="ваша_строка_авторизации"
 ```
 
 После запуска откройте в браузере: http://127.0.0.1:8000
+
+## Запуск в Docker на Windows
+
+В PowerShell из папки проекта соберите образ:
+
+```powershell
+docker build -t portal-v-budushchee:latest .
+```
+
+Задайте секрет GigaChat только в окружении текущего PowerShell и запустите контейнер:
+
+```powershell
+$env:GIGACHAT_CREDENTIALS="ваша_строка_авторизации"
+docker run --rm --name portal-v-budushchee -p 8000:8000 `
+  -e GIGACHAT_CREDENTIALS `
+  portal-v-budushchee:latest
+```
+
+После запуска приложение доступно по адресу: http://localhost:8000
+
+В образ не записываются ключи или настройки GigaChat. Все параметры передаются при запуске контейнера:
+
+- `GIGACHAT_CREDENTIALS` — обязательная строка авторизации OAuth;
+- `GIGACHAT_SCOPE` — область доступа, по умолчанию `GIGACHAT_API_PERS`;
+- `GIGACHAT_MODEL` — модель, по умолчанию `GigaChat`;
+- `GIGACHAT_CA_BUNDLE` — необязательный путь к сертификату внутри контейнера. Сам файл нужно подключить отдельным read-only bind mount.
+
+Необязательные значения можно задать в PowerShell и передать тем же способом:
+
+```powershell
+$env:GIGACHAT_SCOPE="GIGACHAT_API_PERS"
+$env:GIGACHAT_MODEL="GigaChat"
+docker run --rm -p 8000:8000 `
+  -e GIGACHAT_CREDENTIALS `
+  -e GIGACHAT_SCOPE `
+  -e GIGACHAT_MODEL `
+  portal-v-budushchee:latest
+```
