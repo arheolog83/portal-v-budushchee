@@ -229,8 +229,12 @@
     .notice.show { display: block; }
     .notice strong { display: block; margin-bottom: 4px; }
 
+    [hidden] { display: none !important; }
+
     .subjects { display: grid; gap: 10px; margin-top: 8px; }
-    .subject-row { display: grid; grid-template-columns: 1fr 130px 42px; gap: 9px; align-items: center; }
+    .subject-row { display: grid; grid-template-columns: 1fr 88px 105px 42px; gap: 9px; align-items: center; }
+    .subject-row input { min-width: 0; }
+    .schedule-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
     .icon-btn, .add-btn {
       min-height: 42px;
@@ -250,6 +254,13 @@
     th, td { padding: 11px; border: 1px solid var(--line); text-align: left; }
     th { color: #44506d; background: white; }
     td { color: var(--muted); }
+    .schedule-table th, .schedule-table td { min-width: 120px; text-align: center; }
+    .schedule-table th:first-child, .schedule-table td:first-child { min-width: 70px; }
+    .load-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+    .load-chip { padding: 7px 10px; border: 1px solid #d6def2; border-radius: 999px; color: #44506d; background: white; font-size: 13px; }
+    .algorithm-note { padding: 14px; border-radius: 12px; color: #4f5a77; background: rgba(255, 255, 255, .7); font-size: 14px; }
+    .error-notice { padding: 16px; border: 1px solid #efb6bd; border-radius: 13px; color: #8b2f3c; background: #fff1f3; }
+    .button-status { display: inline-block; margin-left: 7px; opacity: .8; }
 
     footer { padding: 30px 0 38px; color: var(--muted); font-size: 14px; text-align: center; }
 
@@ -268,7 +279,8 @@
       .panel { padding: 20px 15px; }
       .form-grid { grid-template-columns: 1fr; }
       .field.wide { grid-column: auto; }
-      .subject-row { grid-template-columns: 1fr 92px 40px; }
+      .schedule-settings { grid-template-columns: 1fr; }
+      .subject-row { grid-template-columns: minmax(112px, 1fr) 70px 76px 40px; gap: 6px; }
       .subject-row input { padding-inline: 9px; }
       .lessons-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
     }
@@ -348,27 +360,35 @@
           <p>Укажите учебную нагрузку на неделю.</p>
         </div>
         <form id="schedule-form">
-          <div class="field">
-            <label for="school-days">Количество учебных дней</label>
-            <select id="school-days" name="school-days">
-              <option value="5">5 дней</option><option value="6">6 дней</option>
-            </select>
+          <div class="schedule-settings">
+            <div class="field">
+              <label for="school-days">Количество учебных дней</label>
+              <select id="school-days" name="school-days">
+                <option value="5">5 дней</option><option value="6">6 дней</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="max-lessons">Максимум уроков в день</label>
+              <input id="max-lessons" name="max-lessons" type="number" min="1" max="10" value="7" required>
+            </div>
           </div>
-          <p class="group-label">Предметы и уроки в неделю</p>
+          <p class="group-label">Предметы, уроки в неделю и сложность от 1 до 5</p>
           <div class="subjects" id="subjects">
             <div class="subject-row">
               <input name="subject" type="text" aria-label="Название предмета" placeholder="Например: Математика" required>
               <input name="lessons" type="number" aria-label="Уроков в неделю" min="1" max="12" value="5" required>
+              <input name="cognitive-difficulty" type="number" aria-label="Когнитивная сложность" min="1" max="5" value="3" required>
               <button class="icon-btn" type="button" aria-label="Удалить предмет">×</button>
             </div>
             <div class="subject-row">
               <input name="subject" type="text" aria-label="Название предмета" placeholder="Например: Русский язык" required>
               <input name="lessons" type="number" aria-label="Уроков в неделю" min="1" max="12" value="4" required>
+              <input name="cognitive-difficulty" type="number" aria-label="Когнитивная сложность" min="1" max="5" value="3" required>
               <button class="icon-btn" type="button" aria-label="Удалить предмет">×</button>
             </div>
           </div>
           <button class="add-btn" id="add-subject" type="button">+ Добавить предмет</button>
-          <button class="primary-btn" type="submit">Составить расписание</button>
+          <button class="primary-btn" id="schedule-submit" type="submit">Составить расписание</button>
         </form>
       </div>
       <aside class="result-card" aria-live="polite">
@@ -376,15 +396,16 @@
         <div class="empty-state" id="schedule-empty">
           <div><div class="empty-icon" aria-hidden="true">🗓️</div><p>Готовое расписание появится в этой таблице.</p></div>
         </div>
-        <div class="notice" id="schedule-notice">
-          <strong>Функция готовится к запуску</strong>
-          Алгоритм составления расписания будет подключён на следующем этапе разработки.
-        </div>
-        <div class="schedule-wrap">
-          <table aria-label="Будущее расписание">
-            <thead><tr><th>День</th><th>Уроки</th></tr></thead>
-            <tbody><tr><td colspan="2">Расписание пока не составлено</td></tr></tbody>
-          </table>
+        <div class="error-notice" id="schedule-error" role="alert" hidden></div>
+        <div id="schedule-result" hidden>
+          <div class="schedule-wrap">
+            <table class="schedule-table" aria-label="Составленное расписание">
+              <thead id="schedule-head"></thead>
+              <tbody id="schedule-body"></tbody>
+            </table>
+          </div>
+          <div class="load-summary" id="load-summary" aria-label="Нагрузка по дням"></div>
+          <p class="algorithm-note" id="algorithm-note"></p>
         </div>
       </aside>
     </section>
@@ -411,10 +432,60 @@
       document.querySelector('#assistant-notice').classList.add('show');
     });
 
-    document.querySelector('#schedule-form').addEventListener('submit', (event) => {
+    document.querySelector('#schedule-form').addEventListener('submit', async (event) => {
       event.preventDefault();
-      document.querySelector('#schedule-empty').hidden = true;
-      document.querySelector('#schedule-notice').classList.add('show');
+      const submitButton = document.querySelector('#schedule-submit');
+      const errorBox = document.querySelector('#schedule-error');
+      const result = document.querySelector('#schedule-result');
+      const rows = [...subjects.querySelectorAll('.subject-row')];
+      const payload = {
+        days: Number(document.querySelector('#school-days').value),
+        max_lessons_per_day: Number(document.querySelector('#max-lessons').value),
+        subjects: rows.map((row) => ({
+          name: row.querySelector('[name="subject"]').value,
+          lessons: Number(row.querySelector('[name="lessons"]').value),
+          difficulty: Number(row.querySelector('[name="cognitive-difficulty"]').value),
+        })),
+      };
+
+      errorBox.hidden = true;
+      result.hidden = true;
+      submitButton.disabled = true;
+      submitButton.innerHTML = 'Составляем<span class="button-status">…</span>';
+
+      try {
+        const response = await fetch('/api/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const message = typeof data.detail === 'string'
+            ? data.detail
+            : 'Проверьте введённые данные и попробуйте снова.';
+          throw new Error(message);
+        }
+
+        document.querySelector('#schedule-empty').hidden = true;
+        const maximumLessons = Math.max(...data.days.map((day) => day.lessons.length));
+        document.querySelector('#schedule-head').innerHTML = `<tr><th>№ урока</th>${data.days.map((day) => `<th>${escapeHtml(day.name)}</th>`).join('')}</tr>`;
+        document.querySelector('#schedule-body').innerHTML = Array.from({ length: maximumLessons }, (_, index) => (
+          `<tr><th>${index + 1}</th>${data.days.map((day) => `<td>${escapeHtml(day.lessons[index] || '—')}</td>`).join('')}</tr>`
+        )).join('');
+        document.querySelector('#load-summary').innerHTML = data.days.map((day) => (
+          `<span class="load-chip">${escapeHtml(day.name)}: <strong>${day.load}</strong></span>`
+        )).join('');
+        document.querySelector('#algorithm-note').textContent = data.principles;
+        result.hidden = false;
+      } catch (error) {
+        document.querySelector('#schedule-empty').hidden = true;
+        errorBox.textContent = error.message || 'Не удалось составить расписание.';
+        errorBox.hidden = false;
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Составить расписание';
+      }
     });
 
     const subjects = document.querySelector('#subjects');
@@ -422,7 +493,7 @@
     document.querySelector('#add-subject').addEventListener('click', () => {
       const row = document.createElement('div');
       row.className = 'subject-row';
-      row.innerHTML = '<input name="subject" type="text" aria-label="Название предмета" placeholder="Название предмета" required><input name="lessons" type="number" aria-label="Уроков в неделю" min="1" max="12" value="1" required><button class="icon-btn" type="button" aria-label="Удалить предмет">×</button>';
+      row.innerHTML = '<input name="subject" type="text" aria-label="Название предмета" placeholder="Название предмета" required><input name="lessons" type="number" aria-label="Уроков в неделю" min="1" max="12" value="1" required><input name="cognitive-difficulty" type="number" aria-label="Когнитивная сложность" min="1" max="5" value="3" required><button class="icon-btn" type="button" aria-label="Удалить предмет">×</button>';
       subjects.append(row);
       row.querySelector('input').focus();
     });
@@ -432,6 +503,12 @@
       const rows = subjects.querySelectorAll('.subject-row');
       if (rows.length > 1) event.target.closest('.subject-row').remove();
     });
+
+    function escapeHtml(value) {
+      const element = document.createElement('span');
+      element.textContent = value;
+      return element.innerHTML;
+    }
   </script>
 </body>
 </html>
