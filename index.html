@@ -261,8 +261,28 @@
     .algorithm-note { padding: 14px; border-radius: 12px; color: #4f5a77; background: rgba(255, 255, 255, .7); font-size: 14px; }
     .error-notice { padding: 16px; border: 1px solid #efb6bd; border-radius: 13px; color: #8b2f3c; background: #fff1f3; }
     .button-status { display: inline-block; margin-left: 7px; opacity: .8; }
-    .generated-content { margin: 18px 0 0; white-space: pre-wrap; word-break: break-word; font: inherit; color: #35405d; }
     .loading-state { min-height: 210px; color: var(--primary-dark); }
+    .generated-material { margin-top: 18px; color: #35405d; }
+    .generated-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+    .generated-kicker { display: block; margin-bottom: 4px; color: var(--primary); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .generated-title { margin: 0 0 4px; color: var(--ink); font-size: 21px; line-height: 1.25; }
+    .generated-meta { margin: 0; color: var(--muted); font-size: 14px; }
+    .copy-btn { flex: 0 0 auto; min-height: 42px; padding: 9px 14px; border: 1px solid #b8c4ea; border-radius: 11px; color: var(--primary-dark); background: white; font-weight: 750; }
+    .copy-btn:hover { border-color: var(--primary); background: var(--soft); }
+    .copy-btn.copied { color: var(--success-ink); border-color: var(--success-line); background: var(--success-soft); }
+    .material-section { margin-top: 22px; }
+    .material-section h5 { margin: 0 0 12px; color: var(--ink); font-size: 17px; }
+    .task-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; counter-reset: generated-task; }
+    .task-card { position: relative; padding: 16px 16px 16px 50px; border: 1px solid #dce3f4; border-radius: 14px; background: rgba(255, 255, 255, .78); counter-increment: generated-task; }
+    .task-card::before { content: counter(generated-task); position: absolute; top: 14px; left: 14px; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: white; background: var(--primary); font-size: 13px; font-weight: 800; }
+    .task-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .answer-options { display: grid; gap: 7px; margin: 12px 0 0; padding: 0; list-style: none; }
+    .answer-option { padding: 8px 10px; border-radius: 9px; color: #495572; background: var(--soft); overflow-wrap: anywhere; }
+    .teacher-section { padding: 18px; border: 1px solid #d7deef; border-radius: 15px; background: #fff; }
+    .teacher-answer { display: grid; grid-template-columns: 28px 1fr; gap: 10px; padding: 11px 0; border-top: 1px solid #edf0f7; }
+    .teacher-answer:first-of-type { padding-top: 0; border-top: 0; }
+    .answer-number { display: grid; place-items: center; align-self: start; width: 26px; height: 26px; border-radius: 8px; color: var(--primary-dark); background: var(--soft); font-size: 13px; font-weight: 800; }
+    .answer-text { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 
     footer { padding: 30px 0 38px; color: var(--muted); font-size: 14px; text-align: center; }
 
@@ -274,6 +294,8 @@
       .tabs { grid-template-columns: 1fr; }
       .panel, .panel.active { grid-template-columns: 1fr; }
       .result-card { min-height: 260px; }
+      .generated-header { flex-direction: column; }
+      .copy-btn { width: 100%; }
     }
 
     @media (max-width: 520px) {
@@ -351,7 +373,7 @@
           <div><div class="empty-icon" aria-hidden="true">✨</div><p>GigaChat готовит задания…</p></div>
         </div>
         <div class="error-notice" id="assistant-error" role="alert" hidden></div>
-        <pre class="generated-content" id="assistant-result" hidden></pre>
+        <div class="generated-material" id="assistant-result" hidden></div>
       </aside>
     </section>
 
@@ -463,7 +485,7 @@
             : 'Проверьте параметры и попробуйте снова.';
           throw new Error(message);
         }
-        resultBox.textContent = data.content;
+        renderGeneratedContent(resultBox, data.content, payload);
         resultBox.hidden = false;
       } catch (error) {
         errorBox.textContent = error.message || 'Не удалось создать задания.';
@@ -551,6 +573,192 @@
       const element = document.createElement('span');
       element.textContent = value;
       return element.innerHTML;
+    }
+
+    function cleanModelLine(line) {
+      return line
+        .trim()
+        .replace(/^#{1,6}\s*/, '')
+        .replace(/\*\*/g, '')
+        .replace(/__/g, '')
+        .trim();
+    }
+
+    function isTeacherHeading(line) {
+      return /^(?:ответы(?:\s+и\s+пояснения)?(?:\s+для\s+учителя)?|пояснения\s+для\s+учителя|ключ\s+ответов)\s*:? *$/i.test(line);
+    }
+
+    function isAnswerLine(line) {
+      return /^(?:(?:правильный\s+)?ответ|пояснение(?:\s+для\s+учителя)?)\s*[:—-]/i.test(line);
+    }
+
+    function splitNumberedBlocks(lines) {
+      const blocks = [];
+      let current = null;
+
+      lines.forEach((line) => {
+        const match = line.match(/^(?:задание\s*)?(\d{1,2})[.):—-]\s*(.*)$/i);
+        if (match) {
+          if (current) blocks.push(current);
+          current = match[2] ? [match[2]] : [];
+        } else if (current) {
+          current.push(line);
+        }
+      });
+      if (current) blocks.push(current);
+      return blocks;
+    }
+
+    function makeTask(lines) {
+      const options = [];
+      const textLines = [];
+
+      lines.forEach((line) => {
+        const option = line.match(/^[-•]?\s*([А-ГA-D])[).:]\s*(.+)$/i);
+        if (option) {
+          options.push(`${option[1].toUpperCase()}) ${option[2]}`);
+        } else if (!/^варианты\s+ответ(?:а|ов)\s*:? *$/i.test(line)) {
+          textLines.push(line);
+        }
+      });
+
+      return {
+        text: textLines.join('\n').trim(),
+        options,
+      };
+    }
+
+    function parseGeneratedContent(content) {
+      const lines = content
+        .replace(/\r/g, '')
+        .split('\n')
+        .map(cleanModelLine)
+        .filter(Boolean);
+      const teacherHeadingIndex = lines.findIndex(isTeacherHeading);
+      const taskLines = teacherHeadingIndex >= 0 ? lines.slice(0, teacherHeadingIndex) : lines;
+      const explicitTeacherLines = teacherHeadingIndex >= 0 ? lines.slice(teacherHeadingIndex + 1) : [];
+      const blocks = splitNumberedBlocks(taskLines);
+      const tasks = [];
+      const answers = [];
+
+      if (blocks.length) {
+        blocks.forEach((block) => {
+          const answerIndex = block.findIndex(isAnswerLine);
+          const taskPart = answerIndex >= 0 ? block.slice(0, answerIndex) : block;
+          const answerPart = answerIndex >= 0 ? block.slice(answerIndex) : [];
+          tasks.push(makeTask(taskPart));
+          if (answerPart.length) answers.push(answerPart.join('\n'));
+        });
+      } else {
+        tasks.push(makeTask(taskLines));
+      }
+
+      if (explicitTeacherLines.length) {
+        const explicitAnswers = splitNumberedBlocks(explicitTeacherLines);
+        answers.length = 0;
+        if (explicitAnswers.length) {
+          explicitAnswers.forEach((answer) => answers.push(answer.join('\n')));
+        } else {
+          answers.push(explicitTeacherLines.join('\n'));
+        }
+      }
+
+      if (!answers.length) {
+        answers.push(`Ответ модели не удалось автоматически разделить. Полный текст:\n${content.trim()}`);
+      }
+
+      return { tasks, answers };
+    }
+
+    function appendTextElement(parent, tagName, className, text) {
+      const element = document.createElement(tagName);
+      element.className = className;
+      element.textContent = text;
+      parent.append(element);
+      return element;
+    }
+
+    function renderGeneratedContent(container, content, payload) {
+      const parsed = parseGeneratedContent(content);
+      const header = document.createElement('div');
+      header.className = 'generated-header';
+      const headingGroup = document.createElement('div');
+      appendTextElement(headingGroup, 'span', 'generated-kicker', 'Материал к уроку');
+      appendTextElement(headingGroup, 'h4', 'generated-title', `Тема: ${payload.topic.trim()}`);
+      const difficultyNames = { basic: 'базовая', medium: 'средняя', advanced: 'повышенная' };
+      const typeNames = { test: 'тест', quiz: 'викторина', independent: 'самостоятельная работа' };
+      appendTextElement(
+        headingGroup,
+        'p',
+        'generated-meta',
+        `${payload.grade} класс · ${typeNames[payload.task_type]} · сложность: ${difficultyNames[payload.difficulty]}`,
+      );
+
+      const copyButton = document.createElement('button');
+      copyButton.type = 'button';
+      copyButton.className = 'copy-btn';
+      copyButton.textContent = 'Скопировать задания';
+      const copyText = `Тема: ${payload.topic.trim()}\n${payload.grade} класс\n\n${content.trim()}`;
+      copyButton.addEventListener('click', () => copyGeneratedMaterial(copyText, copyButton));
+      header.append(headingGroup, copyButton);
+
+      const studentSection = document.createElement('section');
+      studentSection.className = 'material-section';
+      appendTextElement(studentSection, 'h5', '', 'Задания для учеников');
+      const taskList = document.createElement('ol');
+      taskList.className = 'task-list';
+      parsed.tasks.forEach((task) => {
+        const item = document.createElement('li');
+        item.className = 'task-card';
+        if (task.text) appendTextElement(item, 'p', 'task-text', task.text);
+        if (task.options.length) {
+          const options = document.createElement('ul');
+          options.className = 'answer-options';
+          task.options.forEach((option) => appendTextElement(options, 'li', 'answer-option', option));
+          item.append(options);
+        }
+        taskList.append(item);
+      });
+      studentSection.append(taskList);
+
+      const teacherSection = document.createElement('section');
+      teacherSection.className = 'material-section teacher-section';
+      appendTextElement(teacherSection, 'h5', '', 'Ответы и пояснения для учителя');
+      parsed.answers.forEach((answer, index) => {
+        const row = document.createElement('div');
+        row.className = 'teacher-answer';
+        appendTextElement(row, 'span', 'answer-number', String(index + 1));
+        appendTextElement(row, 'p', 'answer-text', answer);
+        teacherSection.append(row);
+      });
+
+      container.replaceChildren(header, studentSection, teacherSection);
+    }
+
+    async function copyGeneratedMaterial(text, button) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const textarea = document.createElement('textarea');
+          textarea.value = text;
+          textarea.setAttribute('readonly', '');
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.append(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          textarea.remove();
+        }
+        button.textContent = 'Скопировано';
+        button.classList.add('copied');
+        window.setTimeout(() => {
+          button.textContent = 'Скопировать задания';
+          button.classList.remove('copied');
+        }, 1800);
+      } catch (error) {
+        button.textContent = 'Не удалось скопировать';
+      }
     }
   </script>
 </body>
