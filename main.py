@@ -1,6 +1,10 @@
+import os
+import ssl
 from pathlib import Path
 from typing import Literal
+from uuid import uuid4
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -13,6 +17,9 @@ app = FastAPI(
 )
 
 INDEX_FILE = Path(__file__).with_name("index.html")
+GIGACHAT_AUTH_URL = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
+GIGACHAT_API_URL = "https://gigachat.devices.sberbank.ru/api/v1/chat/completions"
+GIGACHAT_TIMEOUT = httpx.Timeout(45.0, connect=10.0)
 DAY_NAMES = [
     "Понедельник",
     "Вторник",
@@ -35,9 +42,143 @@ class ScheduleInput(BaseModel):
     subjects: list[SubjectInput] = Field(min_length=1, max_length=30)
 
 
+class GenerateInput(BaseModel):
+    topic: str = Field(min_length=1, max_length=200)
+    grade: int = Field(ge=5, le=11)
+    difficulty: Literal["basic", "medium", "advanced"]
+    task_type: Literal["test", "quiz", "independent"]
+
+
 @app.get("/", response_class=FileResponse, include_in_schema=False)
 async def home() -> FileResponse:
     return FileResponse(INDEX_FILE)
+
+
+def build_generation_payload(data: GenerateInput) -> dict:
+    topic = " ".join(data.topic.split())
+    if not topic:
+        raise HTTPException(status_code=400, detail="Укажите тему урока.")
+
+    difficulty_names = {
+        "basic": "базовая",
+        "medium": "средняя",
+        "advanced": "повышенная",
+    }
+    task_names = {
+        "test": "тест",
+        "quiz": "викторина",
+        "independent": "самостоятельная работа",
+    }
+    test_requirement = (
+        "Для каждого задания дай 4 варианта ответа (А, Б, В, Г) и укажи один правильный."
+        if data.task_type == "test"
+        else "Формулируй задания так, чтобы ученик мог дать самостоятельный ответ."
+    )
+
+    return {
+        "model": os.getenv("GIGACHAT_MODEL", "GigaChat"),
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "Ты — методический помощник российского учителя 5–11 классов. "
+                    "Создавай корректные, возрастосообразные учебные материалы на русском языке. "
+                    "Не запрашивай и не используй персональные данные учеников."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Подготовь ровно 5 заданий по теме «{topic}» для {data.grade} класса. "
+                    f"Формат: {task_names[data.task_type]}. "
+                    f"Сложность: {difficulty_names[data.difficulty]}. "
+                    f"{test_requirement} "
+                    "После каждого задания приведи правильный ответ, затем краткое пояснение "
+                    "для учителя. Оформи результат с понятной нумерацией и заголовками."
+                ),
+            },
+        ],
+        "temperature": 0.4,
+        "max_tokens": 2000,
+        "stream": False,
+    }
+
+
+def _gigachat_ssl_context() -> ssl.SSLContext:
+    ca_bundle = os.getenv("GIGACHAT_CA_BUNDLE")
+    try:
+        return ssl.create_default_context(cafile=ca_bundle) if ca_bundle else ssl.create_default_context()
+    except OSError as error:
+        raise HTTPException(
+            status_code=500,
+            detail="Не удалось загрузить сертификат из GIGACHAT_CA_BUNDLE.",
+        ) from error
+
+
+async def _request_gigachat_token(client: httpx.AsyncClient, credentials: str) -> str:
+    response = await client.post(
+        GIGACHAT_AUTH_URL,
+        headers={
+            "Authorization": f"Basic {credentials}",
+            "RqUID": str(uuid4()),
+            "Accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        data={"scope": os.getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS")},
+    )
+    response.raise_for_status()
+    token = response.json().get("access_token")
+    if not token:
+        raise ValueError("GigaChat token is missing")
+    return token
+
+
+@app.post("/api/generate")
+async def generate_assignments(data: GenerateInput) -> dict:
+    credentials = os.getenv("GIGACHAT_CREDENTIALS", "").strip()
+    if not credentials:
+        raise HTTPException(
+            status_code=503,
+            detail="GigaChat не настроен: задайте переменную окружения GIGACHAT_CREDENTIALS.",
+        )
+
+    payload = build_generation_payload(data)
+    try:
+        async with httpx.AsyncClient(
+            timeout=GIGACHAT_TIMEOUT,
+            verify=_gigachat_ssl_context(),
+        ) as client:
+            token = await _request_gigachat_token(client, credentials)
+            response = await client.post(
+                GIGACHAT_API_URL,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            response.raise_for_status()
+            content = response.json()["choices"][0]["message"]["content"]
+    except httpx.TimeoutException as error:
+        raise HTTPException(
+            status_code=504,
+            detail="GigaChat не ответил вовремя. Попробуйте ещё раз позже.",
+        ) from error
+    except httpx.HTTPStatusError as error:
+        raise HTTPException(
+            status_code=502,
+            detail=f"GigaChat отклонил запрос (HTTP {error.response.status_code}). Проверьте настройки API.",
+        ) from error
+    except (httpx.RequestError, KeyError, IndexError, TypeError, ValueError) as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Не удалось получить корректный ответ от GigaChat. Попробуйте ещё раз позже.",
+        ) from error
+
+    if not isinstance(content, str) or not content.strip():
+        raise HTTPException(status_code=502, detail="GigaChat вернул пустой ответ.")
+    return {"content": content.strip()}
 
 
 def _assignment_score(days: list[list[dict]], total_load: int) -> int:

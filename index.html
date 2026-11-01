@@ -261,6 +261,8 @@
     .algorithm-note { padding: 14px; border-radius: 12px; color: #4f5a77; background: rgba(255, 255, 255, .7); font-size: 14px; }
     .error-notice { padding: 16px; border: 1px solid #efb6bd; border-radius: 13px; color: #8b2f3c; background: #fff1f3; }
     .button-status { display: inline-block; margin-left: 7px; opacity: .8; }
+    .generated-content { margin: 18px 0 0; white-space: pre-wrap; word-break: break-word; font: inherit; color: #35405d; }
+    .loading-state { min-height: 210px; color: var(--primary-dark); }
 
     footer { padding: 30px 0 38px; color: var(--muted); font-size: 14px; text-align: center; }
 
@@ -337,7 +339,7 @@
               </select>
             </div>
           </div>
-          <button class="primary-btn" type="submit">Создать задания</button>
+          <button class="primary-btn" id="assistant-submit" type="submit">Создать задания</button>
         </form>
       </div>
       <aside class="result-card" aria-live="polite">
@@ -345,10 +347,11 @@
         <div class="empty-state" id="assistant-empty">
           <div><div class="empty-icon" aria-hidden="true">📝</div><p>Здесь появятся подготовленные задания.</p></div>
         </div>
-        <div class="notice" id="assistant-notice">
-          <strong>Функция готовится к запуску</strong>
-          Генерация заданий с помощью ИИ будет подключена на следующем этапе разработки.
+        <div class="empty-state loading-state" id="assistant-loading" hidden>
+          <div><div class="empty-icon" aria-hidden="true">✨</div><p>GigaChat готовит задания…</p></div>
         </div>
+        <div class="error-notice" id="assistant-error" role="alert" hidden></div>
+        <pre class="generated-content" id="assistant-result" hidden></pre>
       </aside>
     </section>
 
@@ -426,10 +429,50 @@
       });
     }));
 
-    document.querySelector('#assistant-form').addEventListener('submit', (event) => {
+    document.querySelector('#assistant-form').addEventListener('submit', async (event) => {
       event.preventDefault();
-      document.querySelector('#assistant-empty').hidden = true;
-      document.querySelector('#assistant-notice').classList.add('show');
+      const submitButton = document.querySelector('#assistant-submit');
+      const emptyState = document.querySelector('#assistant-empty');
+      const loadingState = document.querySelector('#assistant-loading');
+      const errorBox = document.querySelector('#assistant-error');
+      const resultBox = document.querySelector('#assistant-result');
+      const payload = {
+        topic: document.querySelector('#topic').value,
+        grade: Number(document.querySelector('#grade').value),
+        difficulty: document.querySelector('#difficulty').value,
+        task_type: document.querySelector('#task-type').value,
+      };
+
+      emptyState.hidden = true;
+      errorBox.hidden = true;
+      resultBox.hidden = true;
+      loadingState.hidden = false;
+      submitButton.disabled = true;
+      submitButton.innerHTML = 'Создаём<span class="button-status">…</span>';
+
+      try {
+        const response = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const message = typeof data.detail === 'string'
+            ? data.detail
+            : 'Проверьте параметры и попробуйте снова.';
+          throw new Error(message);
+        }
+        resultBox.textContent = data.content;
+        resultBox.hidden = false;
+      } catch (error) {
+        errorBox.textContent = error.message || 'Не удалось создать задания.';
+        errorBox.hidden = false;
+      } finally {
+        loadingState.hidden = true;
+        submitButton.disabled = false;
+        submitButton.textContent = 'Создать задания';
+      }
     });
 
     document.querySelector('#schedule-form').addEventListener('submit', async (event) => {
