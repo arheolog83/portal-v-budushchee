@@ -603,6 +603,16 @@
         .replace(/^#{1,6}\s*/, '')
         .replace(/\*\*/g, '')
         .replace(/__/g, '')
+        .replace(/\$+/g, '')
+        .replace(/\\cdot|\\times/g, '×')
+        .replace(/\\approx/g, '≈')
+        .replace(/\\sqrt\{([^{}]+)\}/g, '√($1)')
+        .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '($1/$2)')
+        .replace(/\\(?:,|;|quad|qquad)/g, ' ')
+        .replace(/\\(?:mathrm|text)\{([^{}]+)\}/g, '$1')
+        .replace(/_\{([^{}]+)\}/g, '($1)')
+        .replace(/\^\{([^{}]+)\}/g, '^$1')
+        .replace(/[{}]/g, '')
         .trim();
     }
 
@@ -619,11 +629,11 @@
       let current = null;
 
       lines.forEach((line) => {
-        const match = line.match(/^(?:задание\s*)?(\d{1,2})[.):—-]\s*(.*)$/i);
+        const match = line.match(/^(?:(?:задание|задача|вопрос)\s*(?:№|#)?\s*(\d{1,2})|(\d{1,2})[.):])\s*[:.)—-]?\s*(.*)$/i);
         if (match) {
           if (current) blocks.push(current);
-          current = match[2] ? [match[2]] : [];
-        } else if (current) {
+          current = match[3] ? [match[3]] : [];
+        } else if (current && line !== '---') {
           current.push(line);
         }
       });
@@ -669,10 +679,11 @@
           const taskPart = answerIndex >= 0 ? block.slice(0, answerIndex) : block;
           const answerPart = answerIndex >= 0 ? block.slice(answerIndex) : [];
           tasks.push(makeTask(taskPart));
-          if (answerPart.length) answers.push(answerPart.join('\n'));
+          answers.push(answerPart.length ? answerPart.join('\n') : 'Ответ не выделен автоматически. Проверьте задание.');
         });
       } else {
-        tasks.push(makeTask(taskLines));
+        tasks.push({ text: 'Не удалось безопасно разделить задания. Повторите генерацию.', options: [] });
+        answers.push(content.trim());
       }
 
       if (explicitTeacherLines.length) {
