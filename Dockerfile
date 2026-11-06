@@ -18,7 +18,9 @@ RUN apt-get update \
     && curl -fsSk --retry 3 \
        https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt \
        -o /usr/local/share/ca-certificates/russian_trusted_root_ca.crt \
-    && openssl x509 -in /usr/local/share/ca-certificates/russian_trusted_root_ca.crt -noout \
+    && curl -fsSk --retry 3 \
+       https://gu-st.ru/content/lending/russian_trusted_sub_ca_pem.crt \
+       -o /usr/local/share/ca-certificates/russian_trusted_sub_ca.crt \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
