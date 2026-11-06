@@ -311,6 +311,61 @@ def _order_day(lessons: list[dict]) -> list[dict]:
     return [lessons[index] for index in best_path]
 
 
+
+def _weekly_order_score(days: list[list[dict]]) -> int:
+    """Prefer varied lesson order without overriding daily cognitive priorities."""
+    score = 0
+    for day, lessons in enumerate(days):
+        score += sum(
+            _position_penalty(lesson, position, len(lessons))
+            for position, lesson in enumerate(lessons)
+        )
+        score += sum(
+            _adjacency_penalty(lessons[position - 1], lessons[position])
+            for position in range(1, len(lessons))
+        )
+        if day == 0:
+            continue
+        previous = days[day - 1]
+        # Repeating exactly the same timetable on adjacent days is undesirable.
+        if len(lessons) == len(previous) and all(
+            current["name"] == earlier["name"]
+            for current, earlier in zip(lessons, previous)
+        ):
+            score += 180
+        # Also vary where recurring subjects appear during the week.
+        score += 16 * sum(
+            current["name"] == earlier["name"]
+            for current, earlier in zip(lessons, previous)
+        )
+    return score
+
+
+def _diversify_week_order(days: list[list[dict]]) -> list[list[dict]]:
+    """Improve weekly variety by swapping lessons only within each day."""
+    best_score = _weekly_order_score(days)
+    for _ in range(80):
+        best_move: tuple[int, int, int] | None = None
+        candidate_score = best_score
+        for day_index, lessons in enumerate(days):
+            for first in range(len(lessons)):
+                for second in range(first + 1, len(lessons)):
+                    lessons[first], lessons[second] = lessons[second], lessons[first]
+                    score = _weekly_order_score(days)
+                    lessons[first], lessons[second] = lessons[second], lessons[first]
+                    if score < candidate_score:
+                        candidate_score = score
+                        best_move = (day_index, first, second)
+        if best_move is None:
+            break
+        day_index, first, second = best_move
+        days[day_index][first], days[day_index][second] = (
+            days[day_index][second], days[day_index][first]
+        )
+        best_score = candidate_score
+    return days
+
+
 def build_schedule(data: ScheduleInput) -> list[list[dict]]:
     subjects: list[dict] = []
     seen_names: set[str] = set()
@@ -368,7 +423,8 @@ def build_schedule(data: ScheduleInput) -> list[list[dict]]:
             day_loads[chosen_day] += subject["difficulty"]
 
     _improve_day_assignment(days, total_load)
-    return [_order_day(lessons) for lessons in days]
+    ordered_days = [_order_day(lessons) for lessons in days]
+    return _diversify_week_order(ordered_days)
 
 
 @app.post("/api/schedule")
@@ -386,6 +442,7 @@ async def create_schedule(data: ScheduleInput) -> dict:
         "principles": (
             "Алгоритм сохраняет заданное число часов, распределяет уроки и условную "
             "когнитивную нагрузку между днями, избегает повторов предмета и соседства "
-            "сложных занятий, а сложные уроки по возможности ставит не первыми и не последними."
+            "сложных занятий, а сложные уроки по возможности ставит не первыми и не последними. "
+            "Также алгоритм старается разнообразить порядок уроков в соседние дни."
         ),
     }
