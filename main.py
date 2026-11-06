@@ -22,7 +22,7 @@ app = FastAPI(
 
 INDEX_FILE = Path(__file__).with_name("index.html")
 GIGACHAT_AUTH_URL = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
-GIGACHAT_API_URL = "https://gigachat.devices.sberbank.ru/api/v1/chat/completions"
+GIGACHAT_API_URL = "https://api.giga.chat/v1/chat/completions"
 GIGACHAT_TIMEOUT = httpx.Timeout(45.0, connect=10.0)
 DAY_NAMES = [
     "Понедельник",
