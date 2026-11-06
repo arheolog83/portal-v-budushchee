@@ -1,3 +1,4 @@
+import logging
 import os
 import ssl
 from pathlib import Path
@@ -8,6 +9,9 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+
+
+logger = logging.getLogger("uvicorn.error")
 
 
 app = FastAPI(
@@ -143,12 +147,14 @@ async def generate_assignments(data: GenerateInput) -> dict:
         )
 
     payload = build_generation_payload(data)
+    stage = "oauth"
     try:
         async with httpx.AsyncClient(
             timeout=GIGACHAT_TIMEOUT,
             verify=_gigachat_ssl_context(),
         ) as client:
             token = await _request_gigachat_token(client, credentials)
+            stage = "completion"
             response = await client.post(
                 GIGACHAT_API_URL,
                 headers={
@@ -161,16 +167,25 @@ async def generate_assignments(data: GenerateInput) -> dict:
             response.raise_for_status()
             content = response.json()["choices"][0]["message"]["content"]
     except httpx.TimeoutException as error:
+        logger.warning("GigaChat %s timeout: %s", stage, type(error).__name__)
         raise HTTPException(
             status_code=504,
             detail="GigaChat не ответил вовремя. Попробуйте ещё раз позже.",
         ) from error
     except httpx.HTTPStatusError as error:
+        logger.warning("GigaChat %s HTTP status: %s", stage, error.response.status_code)
         raise HTTPException(
             status_code=502,
             detail=f"GigaChat отклонил запрос (HTTP {error.response.status_code}). Проверьте настройки API.",
         ) from error
     except (httpx.RequestError, KeyError, IndexError, TypeError, ValueError) as error:
+        cause = error.__cause__ or error.__context__
+        logger.warning(
+            "GigaChat %s failure: %s (underlying: %s)",
+            stage,
+            type(error).__name__,
+            type(cause).__name__ if cause else "none",
+        )
         raise HTTPException(
             status_code=502,
             detail="Не удалось получить корректный ответ от GigaChat. Попробуйте ещё раз позже.",
